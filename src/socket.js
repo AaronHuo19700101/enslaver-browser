@@ -12,7 +12,7 @@ export default class Socket {
   // 事件队列
   events = {}
 
-  lifehook = {
+  lifecycle = {
     beforeOpen() {
 
     },
@@ -47,7 +47,7 @@ export default class Socket {
   static onMessage (instance, { data: payload }) {
     const data = JSON.parse(payload);
 
-    instance.lifehook.onmessage(data);
+    instance.lifecycle.onmessage(data);
 
     const type = data.event;
 
@@ -58,16 +58,16 @@ export default class Socket {
 
   init({
     source = this.source,
-    lifehook = this.lifehook,
+    lifecycle = this.lifecycle,
   } = {}) {
     this.source = source;
 
-    this.lifehook = {
-      ...this.lifehook,
-      ...lifehook,
+    this.lifecycle = {
+      ...this.lifecycle,
+      ...lifecycle,
     };
 
-    this.lifehook.beforeOpen();
+    this.lifecycle.beforeOpen();
   }
 
   connect(config) {
@@ -75,11 +75,11 @@ export default class Socket {
 
     this.socket = new WebSocket(this.source);
 
-    this.socket.onopen = this.lifehook.onopen;
+    this.socket.onopen = this.lifecycle.onopen;
 
-    this.socket.onclose = this.lifehook.onclose;
+    this.socket.onclose = this.lifecycle.onclose;
 
-    this.socket.onerror = this.lifehook.onerror;
+    this.socket.onerror = this.lifecycle.onerror;
 
     this.socket.onmessage = res => Socket.onMessage(this, res);
   }
