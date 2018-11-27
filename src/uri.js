@@ -5,103 +5,116 @@
 export default class Uri {
   origin = ''
 
-  constructor(value = '')
-  {
-    this.origin = value;
+  static fields = [
+    'protocol',
+    'hostname',
+    'port',
+    'pathname',
+    'search',
+    'hash',
+  ]
+
+  static pattern = /^(?:(?<protocal>[A-Za-z]+:)\/+)?(?<hostname>[0-9\.A-Za-z]+)?(?::(?<port>\d+))?(?<pathname>\/?[^?#]*)?(?<search>\?[^#]*)?(?<hash>#.*)?$/
+
+  // location => route
+  static deMap = {
+    protocol:
+      value => value.slice(0, -1),
+    hostname:
+      value => value,
+    port:
+      value => value,
+    pathname:
+      value => value,
+    search:
+      value => value.slice(1).split('&')
+        .reduce((acc, entry) => {
+          const [key, value = ''] = entry.split('=');
+
+          return key ? { ...acc, [key]: value } : acc;
+        }, {}),
+    hash:
+      value => value.slice(1),
   }
 
-  get route()
-  {
-    return {
-      protocol: Uri.decodeProtocol(this.origin),
-      query: Uri.decodeQuery(this.origin),
-      hash: Uri.decodeHash(this.origin),
-    };
+  // route => origin
+  static enMap = {
+    protocol:
+      value => value ? `${value}://` : '',
+    hostname:
+      value => value,
+    port:
+      value => value ? `:${value}`: '',
+    pathname:
+      value => value,
+    search:
+      (value = {}) => {
+        const keys = Object.keys(value).filter(key => value[key]);
+
+        if(!keys.length) return '';
+
+        const string = keys.map(key => [key, value[key]]).join('&');
+
+        return `?${string}`;
+      },
+    hash:
+      value => value ? `#${value}` : '',
   }
 
-  /**
-   * @overview  解析protocol值
-   */
-  static decodeProtocol(uri)
-  {
-    const string = decodeURIComponent(uri);
-    const pattern = /^(\S+):\/\//i;
-    const result = string.match(pattern);
-
-    return (result && result[1]) ? result[1] : '';
+  constructor(value) {
+    this.origin = typeof value === 'string'
+      ? value : Uri.encode(value);
   }
 
-  /**
-   * @overview  解析search键和值的对象
-   */
-  static decodeQuery(uri)
-  {
-    const string = decodeURIComponent(uri);
-    const pattern = /\?([^#]+)#?/i;
-    const result = string.match(pattern);
+  get location() {
+    const { group = {} } = Uri.match(this.origin);
 
-    if (!result || !result[1]) return null;
+    const target = Uri.reduce((acc, key) => {
+      const value = group[key] || '';
 
-    const fragments = result[1].split('&');
+      return { ...acc, [key]: value };
+    });
 
-    const object = fragments
-      .reduce((acc, item) => {
-        const entry = item.split('=');
-
-        if (entry[0] && entry[1]) acc[entry[0]] = entry[1];
-
-        return acc;
-      }, {});
-
-    return Object.keys(object).length ? object : {};
-  };
-
-  /**
-   * @overview  解析hash值
-   */
-  static decodeHash(uri) {
-    const string = decodeURIComponent(uri);
-    const pattern = /#(\S+)/i;
-    const result = string.match(pattern);
-
-    return (result && result[1]) ? result[1] : '';
+    return target;
   }
 
-  /**
-   * @overview  将Query对象生成为search
-   *
-   * @param   {object}  hrefObject  - 包含query字段的完整href对象
-   * @param   {object}  prefix      - 生成Query URI的前缀
-   *
-   * @return  {string}  search字符串
-   */
-  static encodeQuery(query, prefix = '?')
-  {
-    const keys = Object.keys(query);
+  get route() {
+    const deMap = Uri.deMap;
 
-    if (!keys.length) return '';
+    const target = Uri.reduce((acc, key) => {
+      const decode = deMap[key];
+      const value = this.location[key];
 
-    const uri = keys
-      .reduce((acc, key, index) =>  {
-        const hyphen = index ? '&' : prefix;
+      return { ...acc, [key]: decode(value) };
+    });
 
-        return `${acc}${hyphen}${key}=${query[key]}`;
-      }, '');
-
-    return uri;
+    return target;
   }
 
-  /**
-   * @overview  生成hash格式值
-   */
-  static encodeHash(value) {
-    return value ? `#${value}` : '';
+  static match(string = '') {
+    return string.match(this.pattern) || {};
   }
 
-  /**
-   * @overview  生成protocol格式值
-   */
-  static encodeProtocol(value) {
-    return value ? `${value}://` : '';
+  static reduce(reducer, init = {}) {
+    return this.fields.reduce(reducer, init);
+  }
+
+  static decode(string, pattern, callback) {
+    const value = string.match(pattern) || [];
+
+    const result = value[1] || '';
+
+    return callback ? callback(result) : result;
+  }
+
+  static encode(route = {}) {
+    const enMap = Uri.enMap;
+
+    return this.reduce((acc, key) => {
+      const encode = enMap[key];
+      const value = route[key] || '';
+
+      return `${acc}${encode(value)}`
+    }, '');
   }
 }
